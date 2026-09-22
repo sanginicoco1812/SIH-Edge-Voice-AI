@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>SIH Live Voice-AI Dashboard</title>
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 40px; text-align: center; }
+            .card { background-color: #1e293b; padding: 30px; border-radius: 12px; display: inline-block; max-width: 600px; text-align: left; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+            .badge-online { background-color: #166534; color: #4ade80; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; display: inline-block; margin-bottom: 15px; }
+            .badge-offline { background-color: #991b1b; color: #fca5a5; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; display: inline-block; margin-bottom: 15px; }
+            code { background-color: #0f172a; color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-family: monospace; }
+            ul { background: #0f172a; padding: 15px 25px; border-radius: 8px; font-family: monospace; list-style-type: square; min-height: 100px; }
+            li { color: #38bdf8; margin-bottom: 6px; }
+        </style>
+        <script>
+            async function updateDashboard() {
+                const badge = document.getElementById("status-badge");
+                try {
+                    // Fetch status directly from the Python backend running on port 8000
+                    const res = await fetch("http://127.0.0.1:8000/api/status", { cache: "no-store" });
+                    if (res.ok) {
+                        const data = await res.json();
+                        
+                        badge.className = "badge-online";
+                        badge.innerHTML = "&#9679; SERVER ONLINE";
+                        
+                        document.getElementById("total-requests").innerText = data.total_requests;
+                        document.getElementById("last-transcript").innerText = data.last_transcript;
+                        
+                        const logList = document.getElementById("logs-list");
+                        if (data.logs.length === 0) {
+                            logList.innerHTML = "<li>No active connections yet.</li>";
+                        } else {
+                            logList.innerHTML = data.logs.map(log => `<li>${log}</li>`).join("");
+                        }
+                    } else {
+                        throw new Error();
+                    }
+                } catch (err) {
+                    // Backend is down: display red OFFLINE badge
+                    badge.className = "badge-offline";
+                    badge.innerHTML = "&#9679; SERVER OFFLINE";
+                }
+            }
+
+            // Check server status every 1 second
+            setInterval(updateDashboard, 1000);
+            window.onload = updateDashboard;
+        </script>
+    </head>
+    <body>
+        <div class="card">
+            <span id="status-badge" class="badge-offline">&#9679; SERVER OFFLINE</span>
+            <h2 style="margin-top:0;">SIH Edge Voice-AI Cloud Backend</h2>
+            <p><b>Total Audio Streams Processed:</b> <span id="total-requests">0</span></p>
+            <p><b>Latest Transcription:</b> <code id="last-transcript">None yet</code></p>
+            <h3>Recent Server Activity Logs:</h3>
+            <ul id="logs-list">
+                <li>No active connections yet.</li>
+            </ul>
+        </div>
+    </body>
+</html>
