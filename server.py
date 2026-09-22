@@ -2,17 +2,24 @@ import asyncio
 import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from faster_whisper import WhisperModel
 import numpy as np
 
 app = FastAPI(title="SIH Edge Voice-AI Cloud Backend")
 
-# Initialize Faster-Whisper Model
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 print("Loading Faster-Whisper ASR Model...")
 whisper_model = WhisperModel("tiny.en", device="cpu", compute_type="int8")
 print("Faster-Whisper Model Loaded Successfully!")
 
-# In-Memory Storage for Live Dashboard Stats
 server_stats = {
     "total_requests": 0,
     "last_transcript": "None yet",
@@ -26,42 +33,24 @@ def log_event(message):
     if len(server_stats["logs"]) > 10:
         server_stats["logs"].pop()
 
-# 1. DYNAMIC WEBPAGE DASHBOARD (Auto-refreshes every 2 seconds)
+# Serve static index.html from root route
 @app.get("/", response_class=HTMLResponse)
 def home():
-    log_items = "".join([f"<li>{log}</li>" for log in server_stats["logs"]])
-    if not log_items:
-        log_items = "<li>No active connections yet.</li>"
-        
-    return f"""
-    <!DOCTYPE html>
-    <html>
-        <head>
-            <title>SIH Live Voice-AI Dashboard</title>
-            <meta http-equiv="refresh" content="2">
-            <style>
-                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 40px; text-align: center; }}
-                .card {{ background-color: #1e293b; padding: 30px; border-radius: 12px; display: inline-block; max-width: 600px; text-align: left; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }}
-                .badge {{ background-color: #166534; color: #4ade80; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; display: inline-block; margin-bottom: 15px; }}
-                code {{ background-color: #0f172a; color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-family: monospace; }}
-                ul {{ background: #0f172a; padding: 15px 25px; border-radius: 8px; font-family: monospace; list-style-type: square; }}
-                li {{ color: #38bdf8; margin-bottom: 6px; }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <span class="badge">&#9679; SERVER ONLINE</span>
-                <h2 style="margin-top:0;">SIH Edge Voice-AI Cloud Backend</h2>
-                <p><b>Total Audio Streams Processed:</b> {server_stats['total_requests']}</p>
-                <p><b>Latest Transcription:</b> <code>{server_stats['last_transcript']}</code></p>
-                <h3>Recent Server Activity Logs:</h3>
-                <ul>{log_items}</ul>
-            </div>
-        </body>
-    </html>
-    """
+    try:
+        with open("index.html", "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        return "<h3>index.html file not found in root directory</h3>"
 
-# 2. WEBSOCKET ENDPOINT FOR AUDIO STREAMING
+@app.get("/api/status")
+def get_status():
+    return {
+        "status": "online",
+        "total_requests": server_stats["total_requests"],
+        "last_transcript": server_stats["last_transcript"],
+        "logs": server_stats["logs"]
+    }
+
 @app.websocket("/stream")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
